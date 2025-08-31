@@ -23,3 +23,8 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+
+# Files 
+src/resume/me/*
+db/chroma
+answer_cache.json

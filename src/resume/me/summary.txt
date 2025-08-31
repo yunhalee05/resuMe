@@ -1,2 +1,58 @@
-My name is Yoonha Lee. I'm an entrepreneur, software engineer and data scientist. I'm originally from London, England, but I moved to NYC in 2000.
-I love all foods, particularly French food, but strangely I'm repelled by almost all forms of cheese. I'm not allergic, I just hate the taste! I make an exception for cream cheese and mozarella though - cheesecake and pizza are the greatest.
+My name is Yoonha Lee. I'm an backend developer, software engineer. 
+I'm from South Korea. I've been working as developer since September 2022.
+
+[이직 희망 사유]
+기존 직장에서는 회원 및 인증, 면허 검증 서비스를 중심으로 서비스 아키텍처와 주요 시나리오를 주도적으로 설계하고 개발하며 기술적인 성장을 이룰 수 있었습니다. 특히 대용량 인증 트래픽을 고려한 API 설계, Kafka 이벤트를 활용한 사용자 이벤트 흐름 비동기 처리, Kubernetes 및 ArgoCD 환경 운영 경험을 통해 백엔드 실무 역량을 다졌습니다.
+그러나 시간이 지남에 따라 동시다발적인 사용자의 요청이나 대규모 트래픽을 처리해야 하는 고가용성 시스템 설계를 실제로 적용하고 운영할 기회가 제한적이었고, 사용자 중심 확장 플랫폼을 설계하고자 하는 개인적인 목표에도 아쉬움이 있었습니다.
+
+[AI 관련 지원 동기]
+대규모 트래픽을 처리하는 백엔드 시스템을 설계하고 운영하며 안정성과 성능 개선을 목표로 경험을 쌓았습니다. 정기 구독 상품 개발과 인증 플랫폼 고도화 과정에서 Kafka 기반 이벤트 아키텍처를 도입해 서비스 간 결합도를 낮추고 장애 전파를 차단했습니다. Redis 캐시 레이어와 Primary/Secondary DB 분리, Look-aside + Write-around 전략을 적용해 성능 병목을 해결했습니다.  
+성과: 단순 조회 QPS를 360→10 미만으로 감소, Latency 299ms→2ms, 초기 요청 2000ms→100ms 단축, 95% 성능 개선. gRPC 기반 통신에서는 세분화된 예외 처리와 인증 로직 구현, 면허 검증 서비스 고도화에서는 Circuit Breaker와 비동기 로깅 환경을 구축하여 안정성을 강화했습니다.  
+최근에는 추천·생성·분석 등 AI 기술이 사용자 경험을 바꾸는 흐름을 체감하며, 단순 학습을 넘어 직접 서비스로 연결하고자 목표를 세웠습니다. AutoGen, OpenAI SDK, CrewAI 강의를 수강하며 최신 동향을 학습했고, 안정적·확장성 있는 AI 서빙 인프라 운영 역량이 필수임을 깨달았습니다. 제 백엔드 경험이 이러한 환경에서 가치를 발휘할 수 있다고 생각합니다.
+
+[프로젝트 경험 및 최고의 성과]
+주요 프로젝트: 
+- 구독 상품 정기 결제 플랫폼 개발: Kafka 이벤트 기반 구독 상태 비동기 처리, Spring Batch/Jenkins 기반 결제 자동화, TypeScript/React 어드민 페이지 구축으로 수기 업무 제거.
+- 성수기 대응 인증 서비스 최적화: DB 병목 제거, read/write 분리 + Redis 캐시 도입으로 Latency 299ms→2ms, 최대 6000 TPS 안정 처리.
+- 면허 재검증 자동화: Spring Batch/Kubernetes cronjob 기반 주기 검증, Kafka 이벤트 기반 비동기 처리, Slack 알림 연동 모니터링 체계 구축.
+
+최고 성과 프로젝트: 성수기 대응 인증 토큰 최적화.  
+문제: 인증 토큰 검증 요청이 Primary DB에 집중, 성수기에는 DB 리소스 고갈·장애 전파 위험.  
+해결: read/write 분리 구조, Redis 캐시 레이어(Look-aside + Write-around 전략) 도입, Datadog 모니터링/알림 체계 구축.  
+성과: Primary DB 조회 360 QPS→10 미만, 인증 Latency 299ms→2ms, 570 TPS~6000 TPS 상황에도 정상 응답, 성수기 장애 0건.
+
+[과제 수행 및 역할]
+- 구독 결제 플랫폼: Kafka + Spring Batch 기반 자동화, 운영 리소스 절감.
+- 인증 서비스 최적화: DB 분리 + Redis 캐시로 성능 개선, resilience4j fallback 적용.
+- 회원 서비스: Spring Security 기반 인증 체계, TestContainers 활용 통합 테스트.
+- 면허 재검증: Spring Batch/K8s cronjob 스케줄링, Kafka 이벤트 비동기 처리, Slack 알림 연동.
+
+[기술 원리 탐구 경험]
+- OptimisticLock 충돌 문제 → Redisson 분산락 도입 + AOP 어노테이션 추상화.
+- gRPC HealthCheck 전파 문제 → grpc-spring-boot-starter 내부 로직 분석, 커스텀 구성으로 해결.
+- gRPC 예외 처리 → 메타데이터 기반 공통 예외 응답 구조화, 클라이언트 확장함수로 처리.
+- HikariCP 연결 유효성 검사 WARN 로그 → MySQL wait_timeout과 maxLifeTime 차이를 분석·해결.
+
+[개발 스타일과 공유 문화]
+- 단순히 작동하는 코드가 아니라, 확장성과 재사용성을 고려한 개선 및 조직 공유를 중시.
+- 블로그 운영: https://dodop-blog.tistory.com/
+- Github: https://github.com/yunhalee05
+- Kubernetes 내부 서비스 호출, 어드민 페이지 구성, Spring Kafka 학습 내용 공유.
+- Redisson 분산락 적용 과정 문서화 → 팀 내부 공유.
+- gRPC HealthCheck 장애 대응, 예외 처리 개선 경험 정리 및 공유.
+- JPA 대량 insert/delete 성능 개선 학습 및 운영 서비스에 적용.
+
+[협업 경험]
+- 소셜 사인업 프로젝트: 앱·프론트엔드·디자인·백엔드·PM 협업 → Figma로 API/예외 플로우 시각화, 단계별 데모 운영 → 일정 준수 및 안정적 출시.
+- 구독 결제 프로젝트: Spring Batch 학습·공유 세션 진행 → 팀 전체 학습 지원.
+- gRPC 장애 대응 경험 공유 → 조직 전반 장애 대응 역량 강화.
+- 인프라팀 협력: terminationGracePeriodSeconds, graceful shutdown, lifecycle 설정 적용 → 운영 안정성 확보.
+
+[참고 링크]
+- Kafka 학습 공유: https://dodop-blog.tistory.com/427
+- Redisson 분산락 적용: https://dodop-blog.tistory.com/475
+- gRPC 장애 대응: https://dodop-blog.tistory.com/494
+- gRPC 예외 처리: https://dodop-blog.tistory.com/474
+- Spring Security 학습: https://dodop-blog.tistory.com/447
+- JPA 성능 개선: https://dodop-blog.tistory.com/498, https://dodop-blog.tistory.com/499
+- SpringMVC + suspend 함수: https://dodop-blog.tistory.com/512
