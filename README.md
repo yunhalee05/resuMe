@@ -1,7 +1,7 @@
 <div align="center">
     <br/>
     <h1><strong><em>💼 resuMe</em></strong></h1>
-    <img width="800" alt="resuMe Demo Screenshot" src="docs/demo.png">
+    <img width="839" height="346" alt="스크린샷 2025-09-01 오후 10 33 07" src="https://github.com/user-attachments/assets/74044123-1e54-4f7d-8286-4ce93b7f6e34" />
     <br/>
     <br/>
     <p>
@@ -141,7 +141,7 @@
 
 <div>
     <h2 id="infrastructure">🔦 Product Infrastructure</h2>
-    <img src="docs/infrastructure.png" width="90%">
+    <img width="11710" height="9210" alt="AgentFlow drawio" src="https://github.com/user-attachments/assets/373ec7ed-9ae0-45f2-82ba-27e1bc5a0d07" />
 </div>
 
 <br/>
