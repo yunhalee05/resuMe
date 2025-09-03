@@ -13,7 +13,7 @@ import tempfile
 
 
 class ResumeChatbot:
-    def __init__(self, gcs_bucket: str, gcs_resume_path: str, gcs_summary_path: str, cache_file: str = "answer_cache.json"):
+    def __init__(self, gcs_bucket: str, gcs_projects_path: str, gcs_qna_path: str, gcs_introduce_path: str, cache_file: str = "answer_cache.json"):
         load_dotenv(override=True)
         self.client = AsyncOpenAI()
         self.name = "Yoonha Lee"
@@ -25,19 +25,24 @@ class ResumeChatbot:
         except Exception as e:
             print(f"GCS 클라이언트 초기화 실패: {e}")
         
-        resume = self._read_from_gcs(gcs_resume_path, is_pdf=True)
-        summary = self._read_from_gcs(gcs_summary_path, is_pdf=False)
-    
-        full_text = summary + "\n\n" + resume
-        splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-        docs = splitter.split_text(full_text)
+        self.docs = []
+        self.meta = []
+        
+        projects = self._read_from_gcs(gcs_projects_path, is_json=True)
+        qna = self._read_from_gcs(gcs_qna_path, is_json=True)
+        summary = self._read_from_gcs(gcs_introduce_path, is_json=False)
+        
+        self._project_json_to_docs(projects)
+        self._qna_json_to_docs(qna)
+        self._text_to_docs(summary)
+        
 
         embeddings = OpenAIEmbeddings()
         persist_dir = "db/chroma"
         if os.path.exists(persist_dir):
             self.vectordb = Chroma(persist_directory=persist_dir, embedding_function=embeddings)
         else:
-            self.vectordb = Chroma.from_texts(docs, embeddings, persist_directory=persist_dir)
+            self.vectordb = Chroma.from_texts(self.docs, embeddings, metadatas=self.meta, persist_directory=persist_dir)
             self.vectordb.persist()
 
         self.cache_file = cache_file
@@ -49,7 +54,7 @@ class ResumeChatbot:
         
         self.conversation_history = []
         
-    def _read_from_gcs(self, file_path: str, is_pdf: bool = False) -> str:
+    def _read_from_gcs(self, file_path: str, is_pdf: bool = False, is_json: bool = False) -> str:
         """GCS에서 파일을 읽어오는 메서드"""
         if not hasattr(self, 'storage_client') or not self.storage_client:
             print("GCS 클라이언트가 초기화되지 않았습니다.")
@@ -70,16 +75,42 @@ class ResumeChatbot:
                             text += page_text
                     os.unlink(temp_file.name) 
                     return text
+            elif is_json:
+                text = blob.download_as_text(encoding='utf-8')
+                return json.loads(text)
             else:
-                # 텍스트 파일인 경우 직접 읽기
                 return blob.download_as_text(encoding='utf-8')
                 
         except Exception as e:
             print(f"GCS에서 파일 읽기 실패 ({file_path}): {e}")
             return ""
 
+    def _project_json_to_docs(self, data: dict): 
+        if "projects" in data:
+            for p in data["projects"]:
+                content = json.dumps(p, ensure_ascii=False, indent=2)
+                tmp = {
+                    "company": p.get("company"),
+                    "role": ", ".join(p.get("role", [])) if isinstance(p.get("role"), list) else p.get("role"),
+                    "period": f"{p['period'].get('from', '')}~{p['period'].get('to', '')}" if isinstance(p.get("period"), dict) else p.get("period"),
+                    "tech_stack": ", ".join([t["name"] for t in p.get("tech_stack", [])])
+                }
+                self.docs.append(content)
+                self.meta.append(tmp)
 
+    def _qna_json_to_docs(self, data: dict): 
+        for q in data:
+            content = json.dumps(q, ensure_ascii=False, indent=2)
+            tmp = {
+                "topic_tags": ", ".join(q.get("topic_tags", [])) if isinstance(q.get("topic_tags"), list) else q.get("topic_tags"),
+            }
+            self.docs.append(content)
+            self.meta.append(tmp)
 
+    def _text_to_docs(self, data: str):
+        splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+        chunks = splitter.split_text(data) 
+        self.docs.extend(chunks)            
 
     def save_cache(self):
         with open(self.cache_file, "w", encoding="utf-8") as f:

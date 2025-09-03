@@ -5,8 +5,9 @@ from resume_chatbot import ResumeChatbot
 def main():
     bot = ResumeChatbot(
         gcs_bucket=os.getenv('GCS_BUCKET'),
-        gcs_resume_path=os.getenv('GCS_RESUME_PATH', 'resume.pdf'),
-        gcs_summary_path=os.getenv('GCS_SUMMARY_PATH', 'summary.txt')
+        gcs_projects_path=os.getenv('GCS_PROJECTS_PATH', 'projects.json'),
+        gcs_qna_path=os.getenv('GCS_QNA_PATH', 'qna.json'),
+        gcs_introduce_path=os.getenv('GCS_INTRODUCE_PATH', 'introduce.txt')
     )
     # # 로컬 파일 사용 (기존 방식)
     # BASE_DIR = os.path.dirname(os.path.abspath(__file__))
