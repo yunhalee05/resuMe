@@ -12,9 +12,11 @@ def main():
     # # 로컬 파일 사용 (기존 방식)
     # BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     # bot = ResumeChatbot(
+    #     gcs_bucket=os.getenv('GCS_BUCKET'),
+    #     gcs_projects_path=os.path.join(BASE_DIR, "me", "projects.json"),
+    #     gcs_qna_path=os.path.join(BASE_DIR, "me", "qna.json"),
+    #     gcs_introduce_path=os.path.join(BASE_DIR, "me", "introduce.txt"),
     #     use_gcs=False,
-    #     resume_path=os.path.join(BASE_DIR, "me", "resume.pdf"),
-    #     summary_path=os.path.join(BASE_DIR, "me", "summary.txt")
     # )
 
     with gr.Blocks(css="""

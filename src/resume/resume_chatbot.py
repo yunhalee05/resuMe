@@ -13,29 +13,31 @@ import tempfile
 
 
 class ResumeChatbot:
-    def __init__(self, gcs_bucket: str, gcs_projects_path: str, gcs_qna_path: str, gcs_introduce_path: str, cache_file: str = "answer_cache.json"):
+    def __init__(self, gcs_bucket: str, gcs_projects_path: str, gcs_qna_path: str, gcs_introduce_path: str, use_gcs = True, cache_file: str = "answer_cache.json"):
         load_dotenv(override=True)
         self.client = AsyncOpenAI()
         self.name = "Yoonha Lee"
         self.gcs_bucket = gcs_bucket
 
-        try:
-            self.storage_client = storage.Client()
-            print("GCS 클라이언트 초기화 성공")
-        except Exception as e:
-            print(f"GCS 클라이언트 초기화 실패: {e}")
-        
+        if use_gcs:
+            try:
+                self.storage_client = storage.Client()
+                print("GCS 클라이언트 초기화 성공")
+            except Exception as e:
+                print(f"GCS 클라이언트 초기화 실패: {e}")
+
         self.docs = []
         self.meta = []
         
-        projects = self._read_from_gcs(gcs_projects_path, is_json=True)
-        qna = self._read_from_gcs(gcs_qna_path, is_json=True)
-        summary = self._read_from_gcs(gcs_introduce_path, is_json=False)
+        reader_func = self._read_from_gcs if use_gcs else self._read_from_local
+
+        projects = reader_func(gcs_projects_path, is_json=True)
+        qna = reader_func(gcs_qna_path, is_json=True)
+        summary = reader_func(gcs_introduce_path, is_json=False)
         
         self._project_json_to_docs(projects)
         self._qna_json_to_docs(qna)
         self._text_to_docs(summary)
-        
 
         embeddings = OpenAIEmbeddings()
         persist_dir = "db/chroma"
@@ -83,6 +85,27 @@ class ResumeChatbot:
                 
         except Exception as e:
             print(f"GCS에서 파일 읽기 실패 ({file_path}): {e}")
+            return ""
+
+    def _read_from_local(self, file_path: str, is_pdf: bool = False, is_json: bool = False) -> str:
+        """로컬 파일에서 읽어오는 메서드"""
+        try:
+            if is_pdf:
+                reader = PdfReader(file_path)
+                text = ""
+                for page in reader.pages:
+                    page_text = page.extract_text()
+                    if page_text:
+                        text += page_text
+                return text
+            elif is_json:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            else:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    return f.read()
+        except Exception as e:
+            print(f"로컬 파일 읽기 실패 ({file_path}): {e}")
             return ""
 
     def _project_json_to_docs(self, data: dict): 
@@ -135,25 +158,65 @@ class ResumeChatbot:
 
     # Agent 1: 질문 분류기
     async def classify_question(self, question: str) -> str:
-        """질문을 카테고리로 분류"""
+        """질문을 카테고리 + 검색 메타데이터 필드로 분류"""
         categories = ["프로젝트 경험", "기술스택", "협업", "자기소개", "학습 경험"]
         prompt = f"""
         분류할 질문: "{question}"
-        아래 카테고리 중 가장 알맞은 하나로 분류해줘:
-        {categories}
-        반드시 위 카테고리 중 하나만 출력해.
+        아래는 이력서 데이터에서 사용되는 메타데이터 필드와 저장되는 값입니다:
+        - company: {"individual", "네이버", "카카오", "쿠팡", ...}
+        - role: {"Backend Engineer", "AI Backend Engineer", "Researcher", ...}
+        - period: { "2025.08~ING", "2024.01~2025.05", ...}
+        - tech_stack: {"Spring Boot", "MySQL", "Kotlin", "Python", ...}
+        - topic_tags: {"문제 해결", "프로젝트 경험", "학습 경험", "기술 스택", "지원 동기", "협업"}
+        - summary: {""}
+
+        카테고리와 메타데이터 매핑 기본 규칙은 다음과 같습니다:
+        - 프로젝트 경험 → ["company", "role", "period", "tech_stack"]
+        - 기술 스택 → ["tech_stack"]
+        - 학습 경험 → ["topic_tags"]
+        - 협업 → ["topic_tags"]
+        - 지원 동기 → ["topic_tags"]
+        - 자기소개 → ["summary"]
+
+        카테고리와 사용되는 메타데이터만을 매핑해서 반드시 아래 JSON 형식으로만 출력하세요:
+        {{
+            "category": "<카테고리>",
+            "search_fields": [<메타데이터 필드1>, <메타데이터 필드2>, ...]
+        }}
         """
+
         response = await self.client.chat.completions.create(
             model="gpt-4o-mini",
-            messages=[{"role": "system", "content": prompt}]
+            messages=[{"role": "system", "content": prompt}],
+            response_format={"type": "json_object"} 
         )
-        return response.choices[0].message.content.strip()
+
+        return json.loads(response.choices[0].message.content.strip())
+       
 
    
     # Agent 2: 지식 검색기 (RAG Agent)
-    async def retrieve_context(self, question: str) -> str:
-        """질문과 가장 유사한 Resume/summary 부분을 검색"""
-        results = self.vectordb.similarity_search(question, k=3)
+    async def retrieve_context(self, question: str, category_info: dict) -> str:
+        """질문과 가장 유사한 카테고리 정보에 맞는 메타데이터 기반 Resume/summary 부분을 검색"""
+        search_fields = category_info.get("search_fields", [])
+        filters = {}
+        for field in search_fields:
+            if field in ["company", "role", "period", "tech_stack", "topic_tags"]:
+                filters[field] = {"$regex": ".*"}  
+            elif field == "summary":
+                pass
+        try:
+            results = self.vectordb.similarity_search(
+                question,
+                k=3,
+                filter=filters if filters else None
+            )
+        except Exception:
+            results = self.vectordb.similarity_search(question, k=3)
+
+        if not results:
+            return ""
+
         return "\n".join([r.page_content for r in results])
 
     async def is_context_valid(self, question: str, threshold: float = 0.2) -> bool:
@@ -261,7 +324,7 @@ class ResumeChatbot:
         category = await self.classify_question(message)
 
         # 2) 관련 컨텍스트 검색
-        context = await self.retrieve_context(message)
+        context = await self.retrieve_context(message, category)
         if not context.strip():
             final_answer = "제 이력서나 요약에는 해당 정보가 포함되어 있지 않아서 답변드리기 어려워요."
             return final_answer
