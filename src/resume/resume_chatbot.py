@@ -10,6 +10,7 @@ from datetime import datetime
 from openai import AsyncOpenAI
 from google.cloud import storage
 import tempfile
+from dateutil import parser
 
 
 class ResumeChatbot:
@@ -112,14 +113,32 @@ class ResumeChatbot:
         if "projects" in data:
             for p in data["projects"]:
                 content = json.dumps(p, ensure_ascii=False, indent=2)
+                period_from = self.parse_date(p.get("period", {}).get("from"))
+                period_to = self.parse_date(p.get("period", {}).get("to"))
+
                 tmp = {
                     "company": p.get("company"),
                     "role": ", ".join(p.get("role", [])) if isinstance(p.get("role"), list) else p.get("role"),
                     "period": f"{p['period'].get('from', '')}~{p['period'].get('to', '')}" if isinstance(p.get("period"), dict) else p.get("period"),
+                    "period_from": period_from.isoformat() if period_from else None,
+                    "period_to": period_to.isoformat() if period_to else None,
                     "tech_stack": ", ".join([t["name"] for t in p.get("tech_stack", [])])
                 }
                 self.docs.append(content)
                 self.meta.append(tmp)
+
+    def parse_date(self, val):
+        if not val:
+            return None
+        if val.upper() in ["ING", "CURRENT", "PRESENT"]:
+            return datetime.now()
+        try:
+            return datetime.strptime(val, "%Y.%m")
+        except ValueError:
+            try:
+                return parser.parse(val)
+            except Exception:
+                return None
 
     def _qna_json_to_docs(self, data: dict): 
         for q in data:
@@ -166,22 +185,41 @@ class ResumeChatbot:
         - company: {"individual", "네이버", "카카오", "쿠팡", ...}
         - role: {"Backend Engineer", "AI Backend Engineer", "Researcher", ...}
         - period: { "2025.08~ING", "2024.01~2025.05", ...}
+        - period_from: { "2025-08-00T12:30:59.000000", "2024-01-28T12:30:59.000000", ...}
+        - period_to: { "2025-08-00T12:30:59.000000", "2024-01-28T12:30:59.000000", ...}
         - tech_stack: {"Spring Boot", "MySQL", "Kotlin", "Python", ...}
         - topic_tags: {"문제 해결", "프로젝트 경험", "학습 경험", "기술 스택", "지원 동기", "협업"}
         - summary: {""}
 
         카테고리와 메타데이터 매핑 기본 규칙은 다음과 같습니다:
-        - 프로젝트 경험 → ["company", "role", "period", "tech_stack"]
+        - 프로젝트 경험 → ["company", "role", "period", "tech_stack", "period_from", "period_to"]
         - 기술 스택 → ["tech_stack"]
         - 학습 경험 → ["topic_tags"]
         - 협업 → ["topic_tags"]
         - 지원 동기 → ["topic_tags"]
         - 자기소개 → ["summary"]
 
+        추가 규칙:
+        - 카테고리별로 해당되는 메타데이터 매핑 규칙들은 filters 조건으로 not null과 not empty("") 조건을 모두 포함해야 합니다. (예: filters={{"tech_stack": {{"$ne": null}}, "tech_stack": {{"$ne": ""}}}})
+        - not empty("") 조건은 반드시 추가하여 빈 문자열도 걸러내세요.
+        - 동일 필드에 두 조건을 합치지 말고, 필요하다면 보조 필드명(예: tech_stack_not_empty)을 만들어서 별도로 넣으세요.
+        - 질문의 카테고리가 프로젝트 경험과 관련된 질문이고 "최근", "가장 최근", "마지막" 등의 시간 조건이 있으면 time_condition = "recent"
+        - 질문의 카테고리가 프로젝트 경험과 관련된 질문이고 "처음", "첫번째" 등의 시간 조건이 있으면 time_condition = "first"
+        - 그렇지 않으면 time_condition = "none"으로 설정하세요. 
+        - 시간 조건("최근", "처음")은 filters가 아니라 time_condition으로 표시합니다. 
+        - 단, 질문에 특정 메타데이터 조건에 대한 데이터가 있으며 필터에 regex like 검색으로 조건을 추가합니다. (예: filters={{"company": {{"$regex": ".*<회사명>.*"}}}})
+        - like 검색의 조건은 여러개여도 좋습니다. 
+        - 단, summary 필드는 예외입니다 (filter에 넣지 마세요).
+        
         카테고리와 사용되는 메타데이터만을 매핑해서 반드시 아래 JSON 형식으로만 출력하세요:
         {{
             "category": "<카테고리>",
-            "search_fields": [<메타데이터 필드1>, <메타데이터 필드2>, ...]
+            "search_fields": [<메타데이터 필드1>, <메타데이터 필드2>, ...],
+            "time_condition": "<recent|first|none>",
+            "filters": {{
+            "<필드명>": {{"$ne": null}},
+            ...
+            }}
         }}
         """
 
@@ -191,6 +229,8 @@ class ResumeChatbot:
             response_format={"type": "json_object"} 
         )
 
+        print(json.loads(response.choices[0].message.content.strip()))
+
         return json.loads(response.choices[0].message.content.strip())
        
 
@@ -199,12 +239,14 @@ class ResumeChatbot:
     async def retrieve_context(self, question: str, category_info: dict) -> str:
         """질문과 가장 유사한 카테고리 정보에 맞는 메타데이터 기반 Resume/summary 부분을 검색"""
         search_fields = category_info.get("search_fields", [])
-        filters = {}
-        for field in search_fields:
-            if field in ["company", "role", "period", "tech_stack", "topic_tags"]:
-                filters[field] = {"$regex": ".*"}  
-            elif field == "summary":
-                pass
+        time_condition = category_info.get("time_condition", "none")
+        filters = category_info.get("filters", {})  
+
+        # for field in search_fields:
+        #     if field in ["company", "role", "period", "tech_stack", "topic_tags", "period_from", "period_to"]:
+        #         filters[field] = {"$regex": ".*"}  
+        #     elif field == "summary":
+        #         pass
         try:
             results = self.vectordb.similarity_search(
                 question,
@@ -216,6 +258,22 @@ class ResumeChatbot:
 
         if not results:
             return ""
+
+        print("\n".join([r.page_content for r in results]))
+
+        if category_info.get("category") == "프로젝트 경험" and time_condition in ["recent", "first"] and any(r.metadata.get("period_from") for r in results):
+            def parse_date_safe(val):
+                try:
+                    return datetime.fromisoformat(val)
+                except Exception:
+                    return datetime.min
+
+            if time_condition == "recent":
+                results = sorted(results, key=lambda r: parse_date_safe(r.metadata.get("period_from")), reverse=True)
+            elif time_condition == "first":
+                results = sorted(results, key=lambda r: parse_date_safe(r.metadata.get("period_from")), reverse=False)
+        
+        print("\n".join([r.page_content for r in results]))
 
         return "\n".join([r.page_content for r in results])
 
@@ -278,6 +336,7 @@ class ResumeChatbot:
             model="gpt-4o-mini",
             messages=messages
         )
+
         return response.choices[0].message.content
 
     # Agent 4 스타일 보정 Agent
@@ -307,6 +366,7 @@ class ResumeChatbot:
             model="gpt-4o-mini",
             messages=[{"role": "system", "content": f"아래 대화를 5문장 이내로 요약해줘:\n{text}"}]
         )
+        print(response.choices[0].message.content.strip())
         return response.choices[0].message.content.strip()
 
 
