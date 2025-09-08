@@ -48,6 +48,11 @@ class ResumeChatbot:
             self.vectordb = Chroma.from_texts(self.docs, embeddings, metadatas=self.meta, persist_directory=persist_dir)
             self.vectordb.persist()
 
+        # all_data = self.vectordb.get()
+        # for i, (doc, meta) in enumerate(zip(all_data["documents"], all_data["metadatas"])):
+        #     print(f"[{i}] {doc}")
+        #     print(f"META: {meta}")
+
         self.cache_file = cache_file
         if os.path.exists(cache_file):
             with open(cache_file, "r", encoding="utf-8") as f:
@@ -110,6 +115,7 @@ class ResumeChatbot:
             return ""
 
     def _project_json_to_docs(self, data: dict): 
+        doc_type = "projects"
         if "projects" in data:
             for p in data["projects"]:
                 content = json.dumps(p, ensure_ascii=False, indent=2)
@@ -117,6 +123,7 @@ class ResumeChatbot:
                 period_to = self.parse_date(p.get("period", {}).get("to"))
 
                 tmp = {
+                    "doc_type": doc_type,
                     "company": p.get("company"),
                     "role": ", ".join(p.get("role", [])) if isinstance(p.get("role"), list) else p.get("role"),
                     "period": f"{p['period'].get('from', '')}~{p['period'].get('to', '')}" if isinstance(p.get("period"), dict) else p.get("period"),
@@ -141,18 +148,25 @@ class ResumeChatbot:
                 return None
 
     def _qna_json_to_docs(self, data: dict): 
+        doc_type = "qna"
         for q in data:
             content = json.dumps(q, ensure_ascii=False, indent=2)
             tmp = {
+                "doc_type": doc_type, 
                 "topic_tags": ", ".join(q.get("topic_tags", [])) if isinstance(q.get("topic_tags"), list) else q.get("topic_tags"),
             }
             self.docs.append(content)
             self.meta.append(tmp)
 
     def _text_to_docs(self, data: str):
+        doc_type = "summary"
         splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
         chunks = splitter.split_text(data) 
-        self.docs.extend(chunks)            
+        for c in chunks:
+            self.docs.append(c)
+            self.meta.append({
+                "doc_type": doc_type
+            })  
 
     def save_cache(self):
         with open(self.cache_file, "w", encoding="utf-8") as f:
@@ -181,44 +195,41 @@ class ResumeChatbot:
         categories = ["프로젝트 경험", "기술스택", "협업", "자기소개", "학습 경험"]
         prompt = f"""
         분류할 질문: "{question}"
-        아래는 이력서 데이터에서 사용되는 메타데이터 필드와 저장되는 값입니다:
-        - company: {"individual", "네이버", "카카오", "쿠팡", ...}
-        - role: {"Backend Engineer", "AI Backend Engineer", "Researcher", ...}
-        - period: { "2025.08~ING", "2024.01~2025.05", ...}
-        - period_from: { "2025-08-00T12:30:59.000000", "2024-01-28T12:30:59.000000", ...}
-        - period_to: { "2025-08-00T12:30:59.000000", "2024-01-28T12:30:59.000000", ...}
-        - tech_stack: {"Spring Boot", "MySQL", "Kotlin", "Python", ...}
-        - topic_tags: {"문제 해결", "프로젝트 경험", "학습 경험", "기술 스택", "지원 동기", "협업"}
-        - summary: {""}
+        이력서 데이터 메타데이터 필드:
+        - company
+        - role
+        - period, period_from, period_to
+        - tech_stack
+        - topic_tags (고정값: {{"문제 해결", "프로젝트 경험", "학습 경험", "기술 스택", "지원 동기", "협업"}})
+        
+        카테고리 → 메타데이터 매핑:
+        - 프로젝트 경험 → [company, role, period, period_from, period_to, tech_stack]
+        - 기술 스택 → [tech_stack]
+        - 학습 경험 → [topic_tags]
+        - 협업 → [topic_tags]
+        - 지원 동기 → [topic_tags]
+        - 자기소개 → [summary]
 
-        카테고리와 메타데이터 매핑 기본 규칙은 다음과 같습니다:
-        - 프로젝트 경험 → ["company", "role", "period", "tech_stack", "period_from", "period_to"]
-        - 기술 스택 → ["tech_stack"]
-        - 학습 경험 → ["topic_tags"]
-        - 협업 → ["topic_tags"]
-        - 지원 동기 → ["topic_tags"]
-        - 자기소개 → ["summary"]
+        카테고리 → doc_type 매핑:
+        - 프로젝트 경험, 기술 스택 → "projects"
+        - 학습 경험, 협업, 지원 동기 → "qna"
+        - 자기소개 → "summary"
 
         추가 규칙:
-        - 카테고리별로 해당되는 메타데이터 매핑 규칙들은 filters 조건으로 not null과 not empty("") 조건을 모두 포함해야 합니다. (예: filters={{"tech_stack": {{"$ne": null}}, "tech_stack": {{"$ne": ""}}}})
-        - not empty("") 조건은 반드시 추가하여 빈 문자열도 걸러내세요.
-        - 동일 필드에 두 조건을 합치지 말고, 필요하다면 보조 필드명(예: tech_stack_not_empty)을 만들어서 별도로 넣으세요.
-        - 질문의 카테고리가 프로젝트 경험과 관련된 질문이고 "최근", "가장 최근", "마지막" 등의 시간 조건이 있으면 time_condition = "recent"
-        - 질문의 카테고리가 프로젝트 경험과 관련된 질문이고 "처음", "첫번째" 등의 시간 조건이 있으면 time_condition = "first"
-        - 그렇지 않으면 time_condition = "none"으로 설정하세요. 
-        - 시간 조건("최근", "처음")은 filters가 아니라 time_condition으로 표시합니다. 
-        - 단, 질문에 특정 메타데이터 조건에 대한 데이터가 있으며 필터에 regex like 검색으로 조건을 추가합니다. (예: filters={{"company": {{"$regex": ".*<회사명>.*"}}}})
-        - like 검색의 조건은 여러개여도 좋습니다. 
-        - 단, summary 필드는 예외입니다 (filter에 넣지 마세요).
+        - 항상 filter에 doc_type 포함 (예: {{"doc_type": "projects"}})
+        - 질문에 특정 값이 있으면 해당 메타데이터 필드에 regex 조건 추가 가능
+        - 프로젝트 경험 질문에 "최근/마지막" → time_condition="recent"
+        - 프로젝트 경험 질문에 "처음/첫번째" → time_condition="first"
+        - 그 외 → time_condition="none"
+        - summary 카테고리의 경우 filter에는 doc_type만 포함
         
-        카테고리와 사용되는 메타데이터만을 매핑해서 반드시 아래 JSON 형식으로만 출력하세요:
+        출력 형식(JSON):
         {{
             "category": "<카테고리>",
-            "search_fields": [<메타데이터 필드1>, <메타데이터 필드2>, ...],
             "time_condition": "<recent|first|none>",
             "filters": {{
-            "<필드명>": {{"$ne": null}},
-            ...
+                "doc_type": "<projects|qna|summary>",
+                "<필드명>": {{"$regex": ".*<값>.*"}}  
             }}
         }}
         """
@@ -238,42 +249,48 @@ class ResumeChatbot:
     # Agent 2: 지식 검색기 (RAG Agent)
     async def retrieve_context(self, question: str, category_info: dict) -> str:
         """질문과 가장 유사한 카테고리 정보에 맞는 메타데이터 기반 Resume/summary 부분을 검색"""
-        search_fields = category_info.get("search_fields", [])
         time_condition = category_info.get("time_condition", "none")
         filters = category_info.get("filters", {})  
+        category = category_info.get("category")
+        k = 5
 
-        # for field in search_fields:
-        #     if field in ["company", "role", "period", "tech_stack", "topic_tags", "period_from", "period_to"]:
-        #         filters[field] = {"$regex": ".*"}  
-        #     elif field == "summary":
-        #         pass
+        print(filters)
+        print(category)
+        print(time_condition)
+
+
         try:
-            results = self.vectordb.similarity_search(
-                question,
-                k=3,
-                filter=filters if filters else None
-            )
+            if(time_condition != "none" and category == "프로젝트 경험"):
+                results = self.vectordb.similarity_search(
+                    question,
+                    k=20,
+                    filter=filters if filters else None
+                )
+                def parse_date_safe(val):
+                    try:
+                        return datetime.fromisoformat(val)
+                    except Exception:
+                        return datetime.min
+                if time_condition == "recent":
+                    results = sorted(results, key=lambda r: parse_date_safe(r.metadata.get("period_from")), reverse=True)[:k]
+                elif time_condition == "first":
+                    results = sorted(results, key=lambda r: parse_date_safe(r.metadata.get("period_from")), reverse=False)[:k]
+            else :
+                results = self.vectordb.similarity_search(
+                    question,
+                    k=k,
+                    filter=filters if filters else None
+                )
         except Exception:
             results = self.vectordb.similarity_search(question, k=3)
 
+        for r in results:
+            print(r.page_content)
+            print("META:", r.metadata)
+            print("-" * 50)
+
         if not results:
             return ""
-
-        print("\n".join([r.page_content for r in results]))
-
-        if category_info.get("category") == "프로젝트 경험" and time_condition in ["recent", "first"] and any(r.metadata.get("period_from") for r in results):
-            def parse_date_safe(val):
-                try:
-                    return datetime.fromisoformat(val)
-                except Exception:
-                    return datetime.min
-
-            if time_condition == "recent":
-                results = sorted(results, key=lambda r: parse_date_safe(r.metadata.get("period_from")), reverse=True)
-            elif time_condition == "first":
-                results = sorted(results, key=lambda r: parse_date_safe(r.metadata.get("period_from")), reverse=False)
-        
-        print("\n".join([r.page_content for r in results]))
 
         return "\n".join([r.page_content for r in results])
 
@@ -372,6 +389,15 @@ class ResumeChatbot:
 
 
     async def chat(self, message: str, history: list):
+        # category = {
+        #     "category": "프로젝트 경험",
+        #     "filters": { "doc_type":"projects"},
+        #     "time_condition": "recent"
+        # }
+        
+        # await self.retrieve_context(message, category)
+
+
         # 캐시에 있다면 답변 
         cached = self.get_cached_answer(message)
         if cached:
