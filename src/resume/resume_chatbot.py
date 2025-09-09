@@ -11,6 +11,9 @@ from openai import AsyncOpenAI
 from google.cloud import storage
 import tempfile
 from dateutil import parser
+from history_store import HistoryStore
+from resume import history_store
+
 
 
 class ResumeChatbot:
@@ -19,6 +22,7 @@ class ResumeChatbot:
         self.client = AsyncOpenAI()
         self.name = "Yoonha Lee"
         self.gcs_bucket = gcs_bucket
+        self.history_store = HistoryStore()
 
         if use_gcs:
             try:
@@ -240,8 +244,6 @@ class ResumeChatbot:
             response_format={"type": "json_object"} 
         )
 
-        print(json.loads(response.choices[0].message.content.strip()))
-
         return json.loads(response.choices[0].message.content.strip())
        
 
@@ -253,11 +255,6 @@ class ResumeChatbot:
         filters = category_info.get("filters", {})  
         category = category_info.get("category")
         k = 5
-
-        print(filters)
-        print(category)
-        print(time_condition)
-
 
         try:
             if(time_condition != "none" and category == "프로젝트 경험"):
@@ -284,10 +281,10 @@ class ResumeChatbot:
         except Exception:
             results = self.vectordb.similarity_search(question, k=3)
 
-        for r in results:
-            print(r.page_content)
-            print("META:", r.metadata)
-            print("-" * 50)
+        # for r in results:
+        #     print(r.page_content)
+        #     print("META:", r.metadata)
+        #     print("-" * 50)
 
         if not results:
             return ""
@@ -338,7 +335,7 @@ class ResumeChatbot:
         messages = [{"role": "system", "content": prompt}]
 
         if len(self.conversation_history) > 3: 
-            summary_text = await self.summarize_history(self.conversation_history[:-3]) 
+            summary_text = await self.summarize_history(self.conversation_history[-3:]) 
             messages.append({"role": "system", "content": f"이전 대화 요약: {summary_text}"})
             recent_history = self.conversation_history[-3:]
         else:
@@ -383,26 +380,19 @@ class ResumeChatbot:
             model="gpt-4o-mini",
             messages=[{"role": "system", "content": f"아래 대화를 5문장 이내로 요약해줘:\n{text}"}]
         )
-        print(response.choices[0].message.content.strip())
         return response.choices[0].message.content.strip()
 
 
 
-    async def chat(self, message: str, history: list):
-        # category = {
-        #     "category": "프로젝트 경험",
-        #     "filters": { "doc_type":"projects"},
-        #     "time_condition": "recent"
-        # }
-        
-        # await self.retrieve_context(message, category)
-
+    async def chat(self, message: str, history: list, session_id: str):
+        print(session_id)
+        print(history)
 
         # 캐시에 있다면 답변 
         cached = self.get_cached_answer(message)
         if cached:
             return cached
-
+        
         if not await self.is_context_valid(message):
             return "제 이력서나 요약에는 해당 정보가 포함되어 있지 않아서 답변드리기 어려워요."
 
@@ -416,6 +406,7 @@ class ResumeChatbot:
             return final_answer
 
         # 3) Persona 답변 생성
+        # recent_history = self.history_store.get_summary(session_id, self.summarize_history)
         draft_answer = await self.persona_answer(message, category, context)
         if "제 이력서에는 해당 정보가 없습니다." in draft_answer:
             return "제 이력서나 요약에는 해당 정보가 포함되어 있지 않아서 답변드리기 어려워요."
@@ -426,6 +417,8 @@ class ResumeChatbot:
         # 5) 대화 기록 저장
         self.conversation_history.append({"q": message, "a": final_answer})
         self.add_to_cache(message, final_answer, category)
+
+        print(self.conversation_history)
 
         return final_answer
 

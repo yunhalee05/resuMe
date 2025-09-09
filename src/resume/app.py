@@ -1,6 +1,11 @@
 import os
 import gradio as gr
 from resume_chatbot import ResumeChatbot
+import uuid
+
+
+def init_session():
+    return str(uuid.uuid4())
 
 def main():
     bot = ResumeChatbot(
@@ -61,7 +66,6 @@ def main():
             border: 1px solid #d1d5db !important;
         }
     """) as demo:
-        
         # 상단 헤더
         gr.HTML(
             """
@@ -88,13 +92,14 @@ def main():
                 )
                 clear = gr.Button("Clear Chat", elem_classes="notion-button")
 
+        session_id = gr.State(init_session)
         # 응답 함수
-        async def respond(message, history):
-            response = await bot.chat(message, history)   # await 필수
+        async def respond(message, history, session_id):
+            response = await bot.chat(message, history, session_id)   
             history.append((message, response))
-            return "", history
+            return "", history, session_id
 
-        msg.submit(respond, [msg, chatbot], [msg, chatbot])
+        msg.submit(respond, [msg, chatbot, session_id], [msg, chatbot, session_id])
         clear.click(lambda: None, None, chatbot, queue=False)
 
 
