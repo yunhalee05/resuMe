@@ -8,21 +8,21 @@ def init_session():
     return str(uuid.uuid4())
 
 def main():
-    bot = ResumeChatbot(
-        gcs_bucket=os.getenv('GCS_BUCKET'),
-        gcs_projects_path=os.getenv('GCS_PROJECTS_PATH', 'projects.json'),
-        gcs_qna_path=os.getenv('GCS_QNA_PATH', 'qna.json'),
-        gcs_introduce_path=os.getenv('GCS_INTRODUCE_PATH', 'introduce.txt')
-    )
-    # 로컬 파일 사용 (기존 방식)
-    # BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     # bot = ResumeChatbot(
     #     gcs_bucket=os.getenv('GCS_BUCKET'),
-    #     gcs_projects_path=os.path.join(BASE_DIR, "me", "projects.json"),
-    #     gcs_qna_path=os.path.join(BASE_DIR, "me", "qna.json"),
-    #     gcs_introduce_path=os.path.join(BASE_DIR, "me", "introduce.txt"),
-    #     use_gcs=False,
+    #     gcs_projects_path=os.getenv('GCS_PROJECTS_PATH', 'projects.json'),
+    #     gcs_qna_path=os.getenv('GCS_QNA_PATH', 'qna.json'),
+    #     gcs_introduce_path=os.getenv('GCS_INTRODUCE_PATH', 'introduce.txt')
     # )
+    # 로컬 파일 사용 (기존 방식)
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    bot = ResumeChatbot(
+        gcs_bucket=os.getenv('GCS_BUCKET'),
+        gcs_projects_path=os.path.join(BASE_DIR, "me", "projects.json"),
+        gcs_qna_path=os.path.join(BASE_DIR, "me", "qna.json"),
+        gcs_introduce_path=os.path.join(BASE_DIR, "me", "introduce.txt"),
+        use_gcs=False,
+    )
 
     with gr.Blocks(css="""
         @import url('https://fonts.googleapis.com/css?family=Black+Han+Sans:400')

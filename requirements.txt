@@ -7,6 +7,7 @@ langchain-community>=0.0.10
 langchain-openai>=0.0.5
 chromadb>=0.4.0
 google-cloud-storage>=2.0.0
+redis>=5.0.0
 
 # Development dependencies
 pytest>=8.0.0
