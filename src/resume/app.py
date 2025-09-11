@@ -1,7 +1,8 @@
 import os
 import gradio as gr
-from resume_chatbot import ResumeChatbot
 import uuid
+
+from resume.resume_chatbot import ResumeChatbot
 
 
 def init_session():
