@@ -1,15 +1,14 @@
 from dotenv import load_dotenv
 from pypdf import PdfReader
-from langchain_community.vectorstores import Chroma
 from langchain.text_splitter import CharacterTextSplitter
-from langchain_openai import OpenAIEmbeddings
 import json, os
 from datetime import datetime
 from google.cloud import storage
 import tempfile
 from dateutil import parser
+from resume.db.vector_store import VectorStore
 
-class VectorStoreManager:
+class ResumeReader:
     def __init__(self, gcs_bucket: str, gcs_projects_path: str, gcs_qna_path: str, gcs_introduce_path: str, use_gcs = True, cache_file: str = "answer_cache.json", name: str = "Yoonha Lee"):
         load_dotenv(override=True)
         self.name = name 
@@ -33,27 +32,6 @@ class VectorStoreManager:
         self._project_json_to_docs(projects)
         self._qna_json_to_docs(qna)
         self._text_to_docs(summary)
-
-        embeddings = OpenAIEmbeddings()
-        persist_dir = "db/chroma"
-        if os.path.exists(persist_dir):
-            self.vectordb = Chroma(persist_directory=persist_dir, embedding_function=embeddings)
-        else:
-            self.vectordb = Chroma.from_texts(self.docs, embeddings, metadatas=self.meta, persist_directory=persist_dir)
-            self.vectordb.persist()
-
-        # all_data = self.vectordb.get()
-        # for i, (doc, meta) in enumerate(zip(all_data["documents"], all_data["metadatas"])):
-        #     print(f"[{i}] {doc}")
-        #     print(f"META: {meta}")
-
-        # self.cache_file = cache_file
-        # if os.path.exists(cache_file):
-        #     with open(cache_file, "r", encoding="utf-8") as f:
-        #         self.answer_cache = json.load(f)
-        # else:
-        #     self.answer_cache = {}
-        
         
     def _read_from_gcs(self, file_path: str, is_pdf: bool = False, is_json: bool = False) -> str:
         """GCS에서 파일을 읽어오는 메서드"""

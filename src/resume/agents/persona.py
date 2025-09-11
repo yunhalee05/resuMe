@@ -1,14 +1,11 @@
 # Agent 3: 답변 생성기 (Persona Agent)
 from openai import AsyncOpenAI
 
-from resume.history_store import HistoryStore
-
 
 class Persona:
-    def __init__(self, client: AsyncOpenAI, history_store: HistoryStore, name = "Yoonha Lee") -> None:
+    def __init__(self, client: AsyncOpenAI, name = "Yoonha Lee") -> None:
         self.client = client 
         self.name = name 
-        self.history_store = history_store
 
     async def persona_answer(self, question: str, category: str, context: str, session_id: str) -> str:
         """이력서 주인공(Yoonha Lee)의 톤으로 답변 생성"""

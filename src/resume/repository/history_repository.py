@@ -1,9 +1,9 @@
-import redis, json
 from resume.agents.summarizer import Summarizer
+from resume.db.cache_store import CacheStore
 
-class HistoryStore:
-    def __init__(self, ttl=3600):
-        self.redis = redis.Redis(host="localhost", port=6379, decode_responses=True)
+class HistoryRepository:
+    def __init__(self, redis: CacheStore, ttl=3600):
+        self.redis = redis
         self.ttl = ttl
         self.summarizer = Summarizer()
 
@@ -12,17 +12,17 @@ class HistoryStore:
         key = f"chat:{session_id}:history"
         history = self.get(session_id)
         history.append({"q": q, "a": a})
-        self.redis.setex(key, self.ttl, json.dumps(history))
+        self.redis.save(key, self.ttl, history)
     
     def set(self, session_id, history):
         """history 전체를 갱신"""
         key = f"chat:{session_id}:history"
-        self.redis.setex(key, self.ttl, json.dumps(history))
+        self.redis.save(key, self.ttl, history)
 
     def get(self, session_id):
         key = f"chat:{session_id}:history"
-        data = self.redis.get(key)
-        return json.loads(data) if data else []
+        return self.redis.get(key)
+        
 
     def get_window(self, session_id, n=5):
         history = self.get(session_id)
@@ -36,3 +36,4 @@ class HistoryStore:
             self.set(session_id, new_history) 
             return new_history
         return history
+
