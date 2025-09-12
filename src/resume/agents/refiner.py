@@ -21,6 +21,9 @@ class Refiner:
         """
         response = await self.client.chat.completions.create(
             model="gpt-4o-mini",
-            messages=[{"role": "system", "content": prompt}]
+            messages=[
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": answer},
+            ],
         )
         return response.choices[0].message.content

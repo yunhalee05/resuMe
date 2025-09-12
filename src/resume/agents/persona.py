@@ -1,11 +1,14 @@
 # Agent 3: 답변 생성기 (Persona Agent)
 from openai import AsyncOpenAI
 
+from resume.repository.history_repository import HistoryRepository
+
 
 class Persona:
-    def __init__(self, client: AsyncOpenAI, name = "Yoonha Lee") -> None:
+    def __init__(self, client: AsyncOpenAI, history_repository: HistoryRepository, name = "Yoonha Lee") -> None:
         self.client = client 
         self.name = name 
+        self.history_repository = history_repository
 
     async def persona_answer(self, question: str, category: str, context: str, session_id: str) -> str:
         """이력서 주인공(Yoonha Lee)의 톤으로 답변 생성"""
@@ -41,7 +44,7 @@ class Persona:
         - 인터뷰 응답자 형식의 대화 형식을 유지한다. 
         """
         messages = [{"role": "system", "content": prompt}]
-        recent_history = self.history_store.get_summary(session_id, n=3)
+        recent_history = await self.history_repository.get_summary(session_id, n=3)
 
         for turn in recent_history:
             if "summary" in turn:

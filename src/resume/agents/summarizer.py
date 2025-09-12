@@ -1,12 +1,12 @@
-from resume.history_store import HistoryStore
-
 # Agent 5 대화 요약기 Agent 
-class Summarizer:  
-    def __init__(self, client) -> None:
-        self.client = client
-        self.history_store = HistoryStore()
+from openai import AsyncOpenAI
 
-    async def summarize_history(self, history):
+
+class Summarizer:  
+    def __init__(self, client: AsyncOpenAI) -> None:
+        self.client = client
+
+    async def summarize_history(self, history: list[dict[str, str]]) -> str:
         text = "\n".join([f"Q: {h['q']}\nA: {h['a']}" for h in history])
         response = await self.client.chat.completions.create(
             model="gpt-4o-mini",

@@ -1,7 +1,5 @@
-
-
 import json
-
+from typing import Any
 from openai import AsyncOpenAI
 
 # Agent 1: 질문 분류기
@@ -9,7 +7,7 @@ class Classifier:
     def __init__(self, client: AsyncOpenAI) -> None:
         self.client = client 
 
-    async def classify_question(self, question: str) -> str:
+    async def classify_question(self, question: str) -> dict[str, Any]:
         """질문을 카테고리 + 검색 메타데이터 필드로 분류"""
         categories = ["프로젝트 경험", "기술스택", "협업", "자기소개", "학습 경험"]
         prompt = f"""
@@ -55,7 +53,10 @@ class Classifier:
 
         response = await self.client.chat.completions.create(
             model="gpt-4o-mini",
-            messages=[{"role": "system", "content": prompt}],
+            messages=[
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": f'분류할 질문: "{question}"'},
+            ],
             response_format={"type": "json_object"} 
         )
 

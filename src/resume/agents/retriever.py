@@ -1,8 +1,3 @@
-
-
-
-
-
 import datetime
 from openai import AsyncOpenAI
 
@@ -23,21 +18,13 @@ class Retriever:
 
         try:
             if(time_condition != "none" and category == "프로젝트 경험"):
-                results = self.store.get_similar_data(
-                    question,
-                    20,
-                    filters if filters else None
-                )
+                results = self.store.get_similar_data(question,20,filters)
                 if time_condition == "recent":
                     results = sorted(results, key=lambda r: self._parse_date_safe(r.metadata.get("period_from")), reverse=True)[:k]
                 elif time_condition == "first":
                     results = sorted(results, key=lambda r: self._parse_date_safe(r.metadata.get("period_from")), reverse=False)[:k]
             else :
-                results = self.store.get_similar_data(
-                    question,
-                    k,
-                    filters if filters else None
-                )
+                results = self.store.get_similar_data(question,k,filters)
         except Exception:
             results = self.store.get_similar_data(question, k=3)
 
@@ -51,12 +38,12 @@ class Retriever:
 
         return "\n".join([r.page_content for r in results])
 
-    def _parse_date_safe(val):
+    def _parse_date_safe(self, val: str | None) -> datetime.datetime:
         try:
-            return datetime.fromisoformat(val)
+            return datetime.datetime.fromisoformat(val) if val else datetime.datetime.min
         except Exception:
-            return datetime.min
+            return datetime.datetime.min
 
     async def is_context_valid(self, question: str, threshold: float = 0.2) -> bool:
-        score= self.store.get_context_score(question, threshold)
+        score= self.store.get_context_score(question)
         return score >= threshold

@@ -1,3 +1,4 @@
+from typing import Union
 from dotenv import load_dotenv
 from pypdf import PdfReader
 from langchain.text_splitter import CharacterTextSplitter
@@ -6,7 +7,6 @@ from datetime import datetime
 from google.cloud import storage
 import tempfile
 from dateutil import parser
-from resume.db.vector_store import VectorStore
 
 class ResumeReader:
     def __init__(self, gcs_bucket: str, gcs_projects_path: str, gcs_qna_path: str, gcs_introduce_path: str, use_gcs = True, cache_file: str = "answer_cache.json", name: str = "Yoonha Lee"):
@@ -33,7 +33,7 @@ class ResumeReader:
         self._qna_json_to_docs(qna)
         self._text_to_docs(summary)
         
-    def _read_from_gcs(self, file_path: str, is_pdf: bool = False, is_json: bool = False) -> str:
+    def _read_from_gcs(self, file_path: str, is_pdf: bool = False, is_json: bool = False) -> Union[str, dict, list]:
         """GCS에서 파일을 읽어오는 메서드"""
         if not hasattr(self, 'storage_client') or not self.storage_client:
             print("GCS 클라이언트가 초기화되지 않았습니다.")
@@ -64,7 +64,7 @@ class ResumeReader:
             print(f"GCS에서 파일 읽기 실패 ({file_path}): {e}")
             return ""
 
-    def _read_from_local(self, file_path: str, is_pdf: bool = False, is_json: bool = False) -> str:
+    def _read_from_local(self, file_path: str, is_pdf: bool = False, is_json: bool = False) -> Union[str, dict, list]:
         """로컬 파일에서 읽어오는 메서드"""
         try:
             if is_pdf:
@@ -90,8 +90,10 @@ class ResumeReader:
         if "projects" in data:
             for p in data["projects"]:
                 content = json.dumps(p, ensure_ascii=False, indent=2)
-                period_from = self._parse_date(p.get("period", {}).get("from"))
-                period_to = self._parse_date(p.get("period", {}).get("to"))
+                period = p.get("period", {})
+                period_from = self._parse_date(period.get("from") if isinstance(period, dict) else None)
+                period_to = self._parse_date(period.get("to") if isinstance(period, dict) else None)
+
 
                 tmp = {
                     "doc_type": doc_type,
@@ -108,7 +110,7 @@ class ResumeReader:
     def _parse_date(self, val):
         if not val:
             return None
-        if val.upper() in ["ING", "CURRENT", "PRESENT"]:
+        if isinstance(val, str) and val.upper() in ["ING", "CURRENT", "PRESENT"]:
             return datetime.now()
         try:
             return datetime.strptime(val, "%Y.%m")

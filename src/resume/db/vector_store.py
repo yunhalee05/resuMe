@@ -2,6 +2,7 @@ from typing import (
     Dict,
     Optional,
 )
+from chromadb.api.types import Document
 from dotenv import load_dotenv
 from langchain_community.vectorstores import Chroma
 from langchain_openai import OpenAIEmbeddings
@@ -32,10 +33,16 @@ class VectorStore:
         # else:
         #     self.answer_cache = {}
     
-    def get_similar_data(self, question: str, k: int, filters: Optional[Dict[str, str]] = None):
-        results = self.vectordb.similarity_search(
-                question,
-                k=k,
-                filter=filters if filters else None
-            )
-        
+    def get_similar_data(self, question: str, k: int, filters: Optional[Dict[str, str]] = None) -> list[Document]:
+        return self.vectordb.similarity_search(
+            query=question,
+            k=k,
+            filter=filters if filters else None
+        )
+
+    def get_context_score(self, question: str) -> float:
+        results = self.vectordb.similarity_search_with_score(question, k=1)
+        if not results:
+            return 0
+        _, score = results[0]
+        return score
