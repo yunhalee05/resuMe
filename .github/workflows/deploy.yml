@@ -54,14 +54,10 @@ jobs:
             GCS_QNA_PATH=${{ secrets.GCS_QNA_PATH }},\
             GCS_INTRODUCE_PATH=${{ secrets.GCS_INTRODUCE_PATH }},\
             REDIS_HOST=${{ secrets.REDIS_HOST }},\
-            REDIS_PORT=${{ secrets.REDIS_PORT }}" \ 
+            REDIS_PORT=${{ secrets.REDIS_PORT }}" \
           --vpc-connector=resume-connector \
           --memory=2Gi \
           --cpu=2 \
           --timeout=300 \
           --max-instances=10 \
           --port=7860
-
-    - name: Show service URL
-      run: |
-        gcloud run services describe $SERVICE_NAME --platform managed --region $REGION --format 'value(status.url)'
