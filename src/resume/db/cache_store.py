@@ -1,11 +1,12 @@
 import json
+import os
 from typing import Any, Union
 import redis
 
 
 class CacheStore:
     def __init__(self) -> None:
-        self.redis = redis.Redis(host="localhost", port=6379, decode_responses=True)
+        self.redis = redis.Redis(host=os.getenv('REDIS_HOST'), port=os.getenv('REDIS_PORT'), decode_responses=True)
     
     def save(self, key: str, ttl: int, data: Any) -> None:
         self.redis.setex(key, ttl, json.dumps(data, ensure_ascii=False)) # 한글 깨지지 않게 설정 

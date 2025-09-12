@@ -31,9 +31,9 @@ class HistoryRepository:
         history = self.get(session_id)
         return history[-n:]
 
-    async def get_summary(self, session_id: str, threshold: int = 10) -> list[dict[str, Any]]:
+    async def get_summary(self, session_id: str, n: int = 10) -> list[dict[str, Any]]:
         history = self.get(session_id)
-        if len(history) > threshold:
+        if len(history) > n:
             summary = await self.summarizer(history[:-5])  
             new_history = [{"summary": summary}] + history[-5:]  
             self.set(session_id, new_history) 

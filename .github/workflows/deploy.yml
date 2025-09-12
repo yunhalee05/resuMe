@@ -47,7 +47,15 @@ jobs:
           --platform managed \
           --region $REGION \
           --allow-unauthenticated \
-          --set-env-vars="OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }},GCS_BUCKET=${{ secrets.GCS_BUCKET }},GCS_RESUME_PATH=${{ secrets.GCS_RESUME_PATH }},GCS_SUMMARY_PATH=${{ secrets.GCS_SUMMARY_PATH }}" \
+          --set-env-vars="\
+            OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }},\
+            GCS_BUCKET=${{ secrets.GCS_BUCKET }},\
+            GCS_PROJECTS_PATH=${{ secrets.GCS_PROJECTS_PATH }},\
+            GCS_QNA_PATH=${{ secrets.GCS_QNA_PATH }},\
+            GCS_INTRODUCE_PATH=${{ secrets.GCS_INTRODUCE_PATH }},\
+            REDIS_HOST=${{ secrets.REDIS_HOST }},\
+            REDIS_PORT=${{ secrets.REDIS_PORT }}" \ 
+          --vpc-connector=resume-connector \
           --memory=2Gi \
           --cpu=2 \
           --timeout=300 \
