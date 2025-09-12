@@ -24,7 +24,7 @@ RUN mkdir -p /app/db /app/cache
 EXPOSE 7860
 
 # 환경변수 설정
-ENV PYTHONPATH=/app
+ENV PYTHONPATH=/app/src
 ENV GRADIO_SERVER_NAME=0.0.0.0
 ENV GRADIO_SERVER_PORT=7860
 
